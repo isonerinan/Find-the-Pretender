@@ -1,0 +1,348 @@
+// Sample questions for the game with their respective number ranges
+const questions = [
+    {
+        text: "How many years would you wait before proposing?",
+        min: 1,
+        max: 10
+    },
+    {
+        text: "What's your ideal number of children?",
+        min: 0,
+        max: 6
+    },
+    {
+        text: "How many countries would you like to visit in your lifetime?",
+        min: 5,
+        max: 50
+    },
+    {
+        text: "What's your dream salary in thousands?",
+        min: 50,
+        max: 500
+    },
+    {
+        text: "How many languages would you like to learn?",
+        min: 1,
+        max: 10
+    },
+    {
+        text: "What's your ideal number of pets?",
+        min: 0,
+        max: 5
+    },
+    {
+        text: "How many hours of sleep do you need?",
+        min: 4,
+        max: 12
+    },
+    {
+        text: "What's your ideal number of close friends?",
+        min: 1,
+        max: 20
+    }
+];
+
+let ws;
+let isNumberPicker = false;
+let isAdmin = false;
+let minNumber = 1;
+let maxNumber = 100;
+let currentQuestion = null;
+let playerName = '';
+let hasSubmittedNumber = false;
+let hasVoted = false;
+let players = new Map(); // Map of player names to their data
+let myVote = null;
+
+// Connect to WebSocket server
+function connect() {
+    const serverUrl = window.location.hostname;
+    ws = new WebSocket(`ws://${serverUrl}:8080`);
+    
+    ws.onopen = () => {
+        console.log('Connected to server');
+        document.getElementById('connectionStatus').textContent = 'Bağlandı';
+        document.getElementById('connectionStatus').style.color = '#4CAF50';
+        document.getElementById('nameInput').disabled = false;
+        document.getElementById('submitName').disabled = false;
+    };
+    
+    ws.onclose = (event) => {
+        console.log('Disconnected from server:', event.code, event.reason);
+        document.getElementById('connectionStatus').textContent = 'Bağlantı kesildi';
+        document.getElementById('connectionStatus').style.color = '#f44336';
+        document.getElementById('nameInput').disabled = true;
+        document.getElementById('submitName').disabled = true;
+        
+        // Show error message based on close code
+        let errorMessage = 'Sunucu bağlantısı kesildi. ';
+        if (event.code === 1008) {
+            errorMessage += event.reason || 'Sunucu dolu veya hız sınırı aşıldı.';
+        } else {
+            errorMessage += 'Lütfen sayfayı yenileyin veya daha sonra tekrar deneyin.';
+        }
+        alert(errorMessage);
+        
+        // Try to reconnect after 5 seconds
+        setTimeout(connect, 5000);
+    };
+    
+    ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        document.getElementById('connectionStatus').textContent = 'Bağlantı hatası';
+        document.getElementById('connectionStatus').style.color = '#f44336';
+    };
+    
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        handleMessage(data);
+    };
+}
+
+function submitName() {
+    const nameInput = document.getElementById('nameInput');
+    const name = nameInput.value.trim();
+    
+    if (name) {
+        playerName = name;
+        document.getElementById('nameInputContainer').style.display = 'none';
+        document.getElementById('role').style.display = 'inline-block';
+        
+        ws.send(JSON.stringify({
+            type: 'join',
+            name: name
+        }));
+    } else {
+        alert('Lütfen isminizi girin');
+    }
+}
+
+function startGame() {
+    console.log('Starting game...'); // Add logging
+    if (isAdmin) {
+        ws.send(JSON.stringify({
+            type: 'startGame'
+        }));
+    }
+}
+
+function handleMessage(data) {
+    console.log('Received message:', data); // Add logging to debug
+    
+    switch (data.type) {
+        case 'role':
+            handleRoleAssignment(data);
+            break;
+        case 'players':
+            console.log('Updating players list with:', data.players); // Add logging
+            updatePlayersList(data.players);
+            break;
+        case 'gameState':
+            handleGameState(data);
+            break;
+        case 'elimination':
+            handleElimination(data);
+            break;
+        case 'gameOver':
+            handleGameOver(data);
+            break;
+        case 'reveal':
+            handleReveal(data);
+            break;
+    }
+}
+
+function handleRoleAssignment(data) {
+    if (data.isAdmin !== undefined) {
+        isAdmin = data.isAdmin;
+        const roleElement = document.getElementById('role');
+        roleElement.textContent = isAdmin ? 'Yönetici' : 'Oyuncu';
+        roleElement.className = `role ${isAdmin ? 'yönetici' : 'oyuncu'}`;
+        roleElement.style.display = 'inline-block';
+        
+        if (isAdmin) {
+            // Remove existing start button if any
+            const existingButton = document.getElementById('startGameButton');
+            if (existingButton) {
+                existingButton.remove();
+            }
+            // Create new start button
+            const startButton = document.createElement('button');
+            startButton.id = 'startGameButton';
+            startButton.textContent = 'Oyunu Başlat';
+            startButton.onclick = startGame;
+            document.getElementById('gameArea').insertBefore(
+                startButton,
+                document.getElementById('prompt')
+            );
+        }
+    } else if (data.isNumberPicker !== undefined) {
+        isNumberPicker = data.isNumberPicker;
+        const roleElement = document.getElementById('role');
+        roleElement.textContent = isNumberPicker ? 'Köstebek' : 'Avcı';
+        roleElement.className = `role ${isNumberPicker ? 'köstebek' : 'avcı'}`;
+        roleElement.style.display = 'inline-block';
+
+        const prompt = document.getElementById('prompt');
+        const numberInput = document.getElementById('numberInput');
+        const numberField = document.getElementById('number');
+
+        if (isNumberPicker) {
+            // Köstebek: show only the number range prompt
+            minNumber = data.minNumber;
+            maxNumber = data.maxNumber;
+            prompt.textContent = `${minNumber} ile ${maxNumber} arasında bir sayı seçiniz.`;
+            numberInput.style.display = 'block';
+            numberField.min = minNumber;
+            numberField.max = maxNumber;
+        } else {
+            // Avcı: show only the question
+            prompt.textContent = data.question;
+            numberInput.style.display = 'block';
+            // Use a wide range for Avcı input, but you can restrict if you want
+            numberField.min = 0;
+            numberField.max = 9999;
+        }
+    }
+}
+
+function updatePlayersList(playersData) {
+    const playersList = document.getElementById('playersList');
+    playersList.innerHTML = '';
+    
+    // Convert playersData object to array of entries
+    const playersArray = Object.entries(playersData);
+    
+    playersArray.forEach(([name, playerData]) => {
+        const playerDiv = document.createElement('div');
+        playerDiv.className = 'player-item';
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'player-name';
+        nameSpan.textContent = name + (playerData.isAdmin ? ' (Yönetici)' : '');
+        
+        const numberSpan = document.createElement('span');
+        numberSpan.className = 'player-number';
+        numberSpan.textContent = playerData.number ? `Sayı: ${playerData.number}` : 'Bekleniyor...';
+        
+        const voteButton = document.createElement('button');
+        voteButton.className = `vote-button ${myVote === name ? 'voted' : ''}`;
+        voteButton.textContent = 'Oy Ver';
+        voteButton.onclick = () => voteForPlayer(name);
+        voteButton.disabled = !hasSubmittedNumber || name === playerName;
+        
+        const voteCount = document.createElement('span');
+        voteCount.className = 'vote-count';
+        voteCount.textContent = `Oylar: ${playerData.votes || 0}`;
+        
+        playerDiv.appendChild(nameSpan);
+        playerDiv.appendChild(numberSpan);
+        playerDiv.appendChild(voteButton);
+        playerDiv.appendChild(voteCount);
+        
+        playersList.appendChild(playerDiv);
+    });
+}
+
+function handleGameState(data) {
+    console.log('Game state update:', data); // Add logging
+    
+    if (data.phase === 'voting') {
+        document.getElementById('waitingMessage').textContent = 'Oylama aşaması - Köstebek olduğunu düşündüğünüz kişiyi seçin!';
+        hasSubmittedNumber = true;
+    } else if (data.phase === 'waiting') {
+        if (data.question) {
+            // Show the question and number input
+            const prompt = document.getElementById('prompt');
+            prompt.textContent = data.question.text;
+            
+            // Show number input and set its range
+            const numberInput = document.getElementById('numberInput');
+            numberInput.style.display = 'block';
+            
+            const numberField = document.getElementById('number');
+            numberField.min = data.question.min;
+            numberField.max = data.question.max;
+            
+            // Update status message
+            document.getElementById('waitingMessage').textContent = 
+                `Lütfen ${data.question.min} ile ${data.question.max} arasında bir sayı girin`;
+        } else {
+            document.getElementById('waitingMessage').textContent = 'Diğer oyuncular bekleniyor...';
+        }
+    }
+}
+
+function handleElimination(data) {
+    const eliminatedPlayer = data.player;
+    const wasKöstebek = data.wasKöstebek;
+    
+    const resultDiv = document.getElementById('gameResult');
+    resultDiv.style.display = 'block';
+    resultDiv.className = wasKöstebek ? 'winner' : 'loser';
+    resultDiv.textContent = wasKöstebek ? 
+        `Game Over! The Köstebek (${eliminatedPlayer}) was caught! Avcılar win!` :
+        `Game Over! ${eliminatedPlayer} was eliminated but they were not the Köstebek!`;
+}
+
+function handleGameOver(data) {
+    const resultDiv = document.getElementById('gameResult');
+    resultDiv.style.display = 'block';
+    resultDiv.className = data.köstebekWon ? 'winner' : 'loser';
+    resultDiv.textContent = data.köstebekWon ?
+        'Game Over! The Köstebek has won!' :
+        'Game Over! The Avcılar have won!';
+}
+
+function handleReveal(data) {
+    // Show the question to everyone
+    const prompt = document.getElementById('prompt');
+    prompt.textContent = data.question;
+    // Show all submitted numbers
+    const playersList = document.getElementById('playersList');
+    playersList.innerHTML = '';
+    Object.entries(data.numbers).forEach(([name, number]) => {
+        const playerDiv = document.createElement('div');
+        playerDiv.className = 'player-item';
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'player-name';
+        nameSpan.textContent = name;
+        const numberSpan = document.createElement('span');
+        numberSpan.className = 'player-number';
+        numberSpan.textContent = `Sayı: ${number}`;
+        playerDiv.appendChild(nameSpan);
+        playerDiv.appendChild(numberSpan);
+        playersList.appendChild(playerDiv);
+    });
+    // Hide number input
+    document.getElementById('numberInput').style.display = 'none';
+}
+
+function submitNumber() {
+    const number = document.getElementById('number').value;
+    if (number >= minNumber && number <= maxNumber) {
+        ws.send(JSON.stringify({
+            type: 'answer',
+            number: parseInt(number)
+        }));
+        document.getElementById('status').textContent = 'Number submitted!';
+        hasSubmittedNumber = true;
+    } else {
+        document.getElementById('status').textContent = `Please enter a number between ${minNumber} and ${maxNumber}`;
+    }
+}
+
+function voteForPlayer(targetName) {
+    if (hasSubmittedNumber && !hasVoted) {
+        ws.send(JSON.stringify({
+            type: 'vote',
+            target: targetName
+        }));
+        myVote = targetName;
+        hasVoted = true;
+        updatePlayersList(Object.fromEntries(players));
+    }
+}
+
+// Connect when the page loads
+connect(); 

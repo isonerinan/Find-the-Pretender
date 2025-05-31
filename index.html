@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Köstebek Bulmaca</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1a73e8;
+            text-align: center;
+        }
+        #gameArea {
+            margin-top: 20px;
+            text-align: center;
+        }
+        #nameInput {
+            margin: 20px 0;
+            text-align: center;
+        }
+        #nameInput input {
+            padding: 10px;
+            font-size: 1.1em;
+            width: 200px;
+            margin-right: 10px;
+        }
+        #prompt {
+            font-size: 1.2em;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #e8f0fe;
+            border-radius: 5px;
+        }
+        #numberInput {
+            display: none;
+            margin: 20px 0;
+        }
+        input[type="number"] {
+            padding: 10px;
+            font-size: 1.1em;
+            width: 100px;
+        }
+        button {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #1557b0;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 20px;
+            color: #666;
+        }
+        .role {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .köstebek {
+            background-color: #ff4444;
+            color: white;
+        }
+        .avcı {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .yönetici {
+            background-color: #ff9800;
+            color: white;
+        }
+        .oyuncu {
+            background-color: #2196F3;
+            color: white;
+        }
+        #playersList {
+            margin-top: 20px;
+            text-align: left;
+        }
+        .player-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .player-name {
+            flex-grow: 1;
+        }
+        .player-number {
+            margin: 0 20px;
+            font-weight: bold;
+        }
+        .vote-button {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .vote-button.voted {
+            background-color: #28a745;
+        }
+        .vote-count {
+            margin-left: 10px;
+            font-weight: bold;
+        }
+        #gameResult {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            display: none;
+        }
+        .winner {
+            background-color: #28a745;
+            color: white;
+        }
+        .loser {
+            background-color: #dc3545;
+            color: white;
+        }
+        #waitingMessage {
+            margin-top: 20px;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Köstebek Bulmaca</h1>
+        <div id="connectionStatus" style="margin-bottom: 20px; font-weight: bold;">Bağlanıyor...</div>
+        <div id="nameInputContainer">
+            <input type="text" id="nameInput" placeholder="İsminizi girin" disabled>
+            <button onclick="submitName()" id="submitName" disabled>Katıl</button>
+        </div>
+        <div id="gameArea">
+            <div id="role" class="role" style="display: none;">Waiting for role...</div>
+            <div id="prompt"></div>
+            <div id="numberInput">
+                <input type="number" id="number" min="1" max="100">
+                <button onclick="submitNumber()">Submit Number</button>
+            </div>
+            <div id="playersList"></div>
+            <div id="waitingMessage"></div>
+            <div id="status"></div>
+            <div id="gameResult"></div>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html> 
