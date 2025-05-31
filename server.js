@@ -46,6 +46,10 @@ let currentQuestion = null;
 let gamePhase = 'waiting'; // waiting, voting, gameOver
 let votes = new Map(); // Map of player names to their votes
 let gameStarted = false;
+let hasSubmittedNumber = false;
+let myVote = null;
+let playerName = '';  // Bunu da atamamışsan at, çünkü voteButton'da kontrol var
+
 
 // Sample questions with ranges
 const questions = [
@@ -107,6 +111,11 @@ function broadcastToAll(message) {
 function updatePlayersList() {
     const playersData = {};
     players.forEach((playerData, ws) => {
+        if (!playerData.name) {
+            console.warn('Player without name detected:', playerData);
+            return;
+        }
+
         playersData[playerData.name] = {
             number: playerData.number,
             votes: playerData.votes || 0,
@@ -119,6 +128,7 @@ function updatePlayersList() {
         players: playersData
     });
 }
+
 
 function assignNewAdministrator() {
     if (players.size > 0) {
@@ -210,20 +220,24 @@ function startNewRound() {
     console.log('Starting new round...');
     currentQuestion = getRandomQuestion();
     gamePhase = 'waiting';
-    
+
+    // 1️⃣ Oyları sıfırla (EN KRİTİK NOKTA)
+    votes.clear();
+
     // Assign new Köstebek if needed
     if (!numberPicker || !players.has(numberPicker)) {
         const playerArray = Array.from(players.keys());
         numberPicker = playerArray[Math.floor(Math.random() * playerArray.length)];
         console.log('New Köstebek assigned:', players.get(numberPicker)?.name);
     }
-    
-    // Reset player numbers
+
+    // Reset player numbers & votes
     players.forEach((playerData) => {
         playerData.number = null;
+        playerData.votes = 0; // Bunu da ekle
     });
-    
-    // Send only the number range to Köstebek, only the question to Avcı
+
+    // Send role info
     players.forEach((playerData, ws) => {
         if (ws.readyState === WebSocket.OPEN) {
             if (ws === numberPicker) {
@@ -242,7 +256,7 @@ function startNewRound() {
             }
         }
     });
-    
+
     updatePlayersList();
 }
 
@@ -303,6 +317,16 @@ wss.on('connection', (ws, req) => {
             case 'startGame':
                 handleStartGame(ws);
                 break;
+            case 'submitNumber':
+                const playerData = players.get(ws);
+                if (!playerData || !gameStarted) return;
+
+                playerData.number = data.number;
+                console.log(`${playerData.name} submitted number: ${data.number}`);
+
+                updatePlayersList();
+                break;
+
         }
     });
     
@@ -377,6 +401,7 @@ function handleStartGame(ws) {
     if (ws === administrator && !gameStarted) {
         console.log('Starting new game...');
         gameStarted = true;
+        resetPlayersForNewGame();
         startNewRound();
         
         // Notify all players that the game has started
@@ -392,6 +417,18 @@ function handleStartGame(ws) {
         });
     }
 }
+
+function resetPlayersForNewGame() {
+    for (const [ws, player] of players.entries()) {
+        player.number = null;
+        player.votes = 0;
+        // Adminlik durumu kalabilir, istersen resetleme
+    }
+    köstebek = null;
+    votes.clear();
+    updatePlayersList(); // Bu kritik
+}
+
 
 function handleAnswer(ws, number) {
     if (!gameStarted) return;
@@ -422,31 +459,36 @@ function handleAnswer(ws, number) {
 
 function handleVote(ws, target) {
     if (!gameStarted) return;
-    
+
     const voterData = players.get(ws);
+    if (!voterData) return; // Oy kullanan oyuncu kayıtlı değilse
+
+    if (votes.has(voterData.name)) return; // Aynı oyuncu iki kez oy kullanamaz
+
     votes.set(voterData.name, target);
-    
-    // Update vote counts
+    console.log(`${voterData.name} voted for ${target}`);
+
+    // Oy sayacı sıfırlanıyor
     players.forEach((playerData) => {
         playerData.votes = 0;
     });
-    
-    votes.forEach((target) => {
-        for (const playerData of players.values()) {
-            if (playerData.name === target) {
-                playerData.votes++;
-                break;
-            }
+
+    // Yeni oy dağılımı hesaplanıyor
+    votes.forEach((targetName) => {
+        const targetPlayer = [...players.values()].find(p => p.name === targetName);
+        if (targetPlayer) {
+            targetPlayer.votes++;
         }
     });
-    
+
     updatePlayersList();
-    
-    // Check if all players have voted
+
+    // Tüm oyuncular oy kullandıysa sonuç işleniyor
     if (votes.size === players.size) {
         processVotes();
     }
 }
+
 
 const PORT = process.env.PORT || 8080;
 const HOST = '0.0.0.0';

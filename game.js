@@ -131,6 +131,8 @@ function handleMessage(data) {
     
     switch (data.type) {
         case 'role':
+            hasSubmittedNumber = false;
+            myVote = null;
             handleRoleAssignment(data);
             break;
         case 'players':
@@ -153,20 +155,16 @@ function handleMessage(data) {
 }
 
 function handleRoleAssignment(data) {
+    const roleElement = document.getElementById('role');
     if (data.isAdmin !== undefined) {
         isAdmin = data.isAdmin;
-        const roleElement = document.getElementById('role');
         roleElement.textContent = isAdmin ? 'Yönetici' : 'Oyuncu';
         roleElement.className = `role ${isAdmin ? 'yönetici' : 'oyuncu'}`;
         roleElement.style.display = 'inline-block';
-        
+
         if (isAdmin) {
-            // Remove existing start button if any
             const existingButton = document.getElementById('startGameButton');
-            if (existingButton) {
-                existingButton.remove();
-            }
-            // Create new start button
+            if (existingButton) existingButton.remove();
             const startButton = document.createElement('button');
             startButton.id = 'startGameButton';
             startButton.textContent = 'Oyunu Başlat';
@@ -175,10 +173,12 @@ function handleRoleAssignment(data) {
                 startButton,
                 document.getElementById('prompt')
             );
+        } else {
+            const existingButton = document.getElementById('startGameButton');
+            if (existingButton) existingButton.remove();
         }
     } else if (data.isNumberPicker !== undefined) {
         isNumberPicker = data.isNumberPicker;
-        const roleElement = document.getElementById('role');
         roleElement.textContent = isNumberPicker ? 'Köstebek' : 'Avcı';
         roleElement.className = `role ${isNumberPicker ? 'köstebek' : 'avcı'}`;
         roleElement.style.display = 'inline-block';
@@ -187,24 +187,24 @@ function handleRoleAssignment(data) {
         const numberInput = document.getElementById('numberInput');
         const numberField = document.getElementById('number');
 
+        numberInput.style.display = 'block';
+
         if (isNumberPicker) {
-            // Köstebek: show only the number range prompt
             minNumber = data.minNumber;
             maxNumber = data.maxNumber;
             prompt.textContent = `${minNumber} ile ${maxNumber} arasında bir sayı seçiniz.`;
-            numberInput.style.display = 'block';
             numberField.min = minNumber;
             numberField.max = maxNumber;
         } else {
-            // Avcı: show only the question
-            prompt.textContent = data.question;
-            numberInput.style.display = 'block';
-            // Use a wide range for Avcı input, but you can restrict if you want
+            // Avcı
+            const questionText = typeof data.question === 'string' ? data.question : data.question?.text || '';
+            prompt.textContent = questionText;
             numberField.min = 0;
             numberField.max = 9999;
         }
     }
 }
+
 
 function updatePlayersList(playersData) {
     const playersList = document.getElementById('playersList');
@@ -249,8 +249,10 @@ function handleGameState(data) {
     
     if (data.phase === 'voting') {
         document.getElementById('waitingMessage').textContent = 'Oylama aşaması - Köstebek olduğunu düşündüğünüz kişiyi seçin!';
-        hasSubmittedNumber = true;
+        hasSubmittedNumber = true;  // Oy verme aşamasında sayı gönderimi tamamdır zaten
     } else if (data.phase === 'waiting') {
+        hasSubmittedNumber = false;  // Burada resetle yoksa butonlar hep disabled kalır
+        
         if (data.question) {
             // Show the question and number input
             const prompt = document.getElementById('prompt');
@@ -272,6 +274,7 @@ function handleGameState(data) {
         }
     }
 }
+
 
 function handleElimination(data) {
     const eliminatedPlayer = data.player;
@@ -314,35 +317,41 @@ function handleReveal(data) {
         playerDiv.appendChild(numberSpan);
         playersList.appendChild(playerDiv);
     });
-    // Hide number input
-    document.getElementById('numberInput').style.display = 'none';
+    // Hide vote buttons after reveal
+    document.querySelectorAll('.vote-button').forEach(btn => {
+        btn.disabled = true;
+    });
 }
 
 function submitNumber() {
-    const number = document.getElementById('number').value;
-    if (number >= minNumber && number <= maxNumber) {
+    const number = parseInt(document.getElementById('number').value, 10);
+    if (!isNaN(number)) {
         ws.send(JSON.stringify({
-            type: 'answer',
-            number: parseInt(number)
+            type: 'submitNumber',
+            number: number
         }));
-        document.getElementById('status').textContent = 'Number submitted!';
         hasSubmittedNumber = true;
+        document.getElementById('waitingMessage').textContent = 'Sayı gönderildi, diğer oyuncular bekleniyor...';
     } else {
-        document.getElementById('status').textContent = `Please enter a number between ${minNumber} and ${maxNumber}`;
+        alert('Lütfen geçerli bir sayı girin.');
     }
 }
 
-function voteForPlayer(targetName) {
-    if (hasSubmittedNumber && !hasVoted) {
+function voteForPlayer(name) {
+    if (!hasVoted && hasSubmittedNumber && name !== playerName) {
         ws.send(JSON.stringify({
             type: 'vote',
-            target: targetName
+            target: name
         }));
-        myVote = targetName;
         hasVoted = true;
-        updatePlayersList(Object.fromEntries(players));
+        myVote = name;
+        updatePlayersList(Object.fromEntries(players)); // update UI to reflect vote
     }
 }
 
-// Connect when the page loads
-connect(); 
+// Kick off the WebSocket connection on page load
+window.onload = () => {
+    connect();
+    document.getElementById('submitName').onclick = submitName;
+    document.getElementById('submitNumber').onclick = submitNumber;
+};
