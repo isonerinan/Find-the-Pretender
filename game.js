@@ -56,8 +56,8 @@ let myVote = null;
 
 // Connect to WebSocket server
 function connect() {
-    const serverUrl = window.location.hostname;
-    ws = new WebSocket(`ws://${serverUrl}:8080`);
+    const serverUrl = window.location.origin.replace(/^http/, 'ws');
+    ws = new WebSocket(`${serverUrl}`);
     
     ws.onopen = () => {
         console.log('Connected to server');

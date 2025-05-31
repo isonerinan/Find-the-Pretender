@@ -1,7 +1,7 @@
 {
-  "name": "question-game",
+  "name": "find-the-pretender",
   "version": "1.0.0",
-  "description": "A multiplayer question game",
+  "description": "A social question game",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
