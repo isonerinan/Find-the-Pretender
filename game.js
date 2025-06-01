@@ -306,11 +306,20 @@ function handleElimination(data) {
 function handleGameOver(data) {
     const resultDiv = document.getElementById('gameResult');
     resultDiv.style.display = 'block';
-    resultDiv.className = data.köstebekWon ? 'winner' : 'loser';
-    resultDiv.textContent = data.köstebekWon ?
-        'Game Over! The Köstebek has won!' :
-        'Game Over! The Avcılar have won!';
+
+    if (data.winCondition === 1) {
+        resultDiv.className = 'winner';
+        resultDiv.textContent = 'Game Over! The Köstebek has won!';
+    } else if (data.winCondition === 2) {
+        resultDiv.className = 'winner';
+        resultDiv.textContent = 'Game Over! The Avcılar have won!';
+    } else {
+        // Hala devam ediyorsa ya da hata varsa
+        resultDiv.className = '';
+        resultDiv.textContent = 'Game is still ongoing...';
+    }
 }
+
 
 function handleReveal(data) {
     // Show the question to everyone
