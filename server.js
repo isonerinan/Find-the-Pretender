@@ -397,14 +397,24 @@ function handleJoin(ws, name) {
 
 function handleStartGame(ws) {
     console.log('Start game request received from:', players.get(ws)?.name);
-    
+
+    const activePlayers = Array.from(players.values()).filter(p => !p.eliminated || p.eliminated === false);
+
+    if (activePlayers.length < 3) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Oyunu başlatmak için en az 3 oyuncu gerekir.'
+        }));
+        console.log('Start game rejected: too few players.');
+        return;
+    }
+
     if (ws === administrator && !gameStarted) {
         console.log('Starting new game...');
         gameStarted = true;
         resetPlayersForNewGame();
         startNewRound();
-        
-        // Notify all players that the game has started
+
         broadcastToAll({
             type: 'gameState',
             phase: 'waiting',
@@ -418,10 +428,13 @@ function handleStartGame(ws) {
     }
 }
 
+
+
 function resetPlayersForNewGame() {
     for (const [ws, player] of players.entries()) {
         player.number = null;
         player.votes = 0;
+        player.eliminated = false;
         // Adminlik durumu kalabilir, istersen resetleme
     }
     köstebek = null;

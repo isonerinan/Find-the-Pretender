@@ -128,8 +128,11 @@ function startGame() {
 
 function handleMessage(data) {
     console.log('Received message:', data); // Add logging to debug
-    
+
     switch (data.type) {
+        case 'error':
+            alert(data.message); // Sunucudan gelen hata mesajını kullanıcıya göster
+            break;
         case 'role':
             hasSubmittedNumber = false;
             myVote = null;
@@ -154,8 +157,19 @@ function handleMessage(data) {
     }
 }
 
+
 function handleRoleAssignment(data) {
     const roleElement = document.getElementById('role');
+    if (data.eliminated) {
+        roleElement.textContent = 'İzleyici (Atıldın)';
+        roleElement.className = 'role atildi';
+        roleElement.style.display = 'inline-block';
+    
+        // Sayı girme alanını ve prompt'u gizle
+        document.getElementById('numberInput').style.display = 'none';
+        document.getElementById('prompt').textContent = 'Bir sonraki turu bekliyorsun.';
+        return;
+    }    
     if (data.isAdmin !== undefined) {
         isAdmin = data.isAdmin;
         roleElement.textContent = isAdmin ? 'Yönetici' : 'Oyuncu';
@@ -219,7 +233,8 @@ function updatePlayersList(playersData) {
         
         const nameSpan = document.createElement('span');
         nameSpan.className = 'player-name';
-        nameSpan.textContent = name + (playerData.isAdmin ? ' (Yönetici)' : '');
+        nameSpan.textContent = name + (playerData.isAdmin ? ' (Yönetici)' : '') + (playerData.eliminated ? ' (Atıldı)' : '');
+
         
         const numberSpan = document.createElement('span');
         numberSpan.className = 'player-number';
@@ -229,7 +244,7 @@ function updatePlayersList(playersData) {
         voteButton.className = `vote-button ${myVote === name ? 'voted' : ''}`;
         voteButton.textContent = 'Oy Ver';
         voteButton.onclick = () => voteForPlayer(name);
-        voteButton.disabled = !hasSubmittedNumber || name === playerName;
+        voteButton.disabled = !hasSubmittedNumber || name === playerName || playerData.eliminated;
         
         const voteCount = document.createElement('span');
         voteCount.className = 'vote-count';
