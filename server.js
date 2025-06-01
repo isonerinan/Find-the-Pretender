@@ -161,7 +161,7 @@ function startVotingPhase() {
     updatePlayersList();
 }
 
-function processVotes() {
+function processVotes() { 
     const voteCounts = new Map();
     votes.forEach((target) => {
         voteCounts.set(target, (voteCounts.get(target) || 0) + 1);
@@ -178,41 +178,71 @@ function processVotes() {
     });
     
     if (eliminatedPlayer) {
-        const wasKöstebek = players.get(numberPicker).name === eliminatedPlayer;
+        // Elenen oyuncuyu bul ve statusunu spectator yap
+        for (const [ws, playerData] of players.entries()) {
+            if (playerData.name === eliminatedPlayer) {
+                playerData.status = 'spectator';  // izleyici yaptık
+                players.set(ws, playerData);
+                break;
+            }
+        }
+        
+        // Köstebek kim?
+        let köstebekName = null;
+        for (const playerData of players.values()) {
+            if (playerData.role === 'köstebek') {
+                köstebekName = playerData.name;
+                break;
+            }
+        }
+        
+        let winCondition = 0; // 0=devam,1=köstebek kazandı, 2=avcılar kazandı
+        
+        if (eliminatedPlayer === köstebekName) {
+            // Köstebek elendi, avcılar kazandı
+            winCondition = 2;
+        } else {
+            // Köstebek elenmedi, aktif oyuncu sayısını kontrol et
+            const activePlayersCount = [...players.values()].filter(p => p.status !== 'spectator').length;
+            if (activePlayersCount <= 2) {
+                // Oyuncu sayısı 2 veya daha az, köstebek kazandı
+                winCondition = 1;
+            } else {
+                // Oyun devam ediyor
+                winCondition = 0;
+            }
+        }
         
         broadcastToAll({
             type: 'elimination',
             player: eliminatedPlayer,
-            wasKöstebek: wasKöstebek
+            wasKöstebek: eliminatedPlayer === köstebekName
         });
         
-        if (wasKöstebek) {
-            endGame(false);
+        if (winCondition === 0) {
+            startNewRound();
         } else {
-            // Remove eliminated player
-            for (const [ws, playerData] of players.entries()) {
-                if (playerData.name === eliminatedPlayer) {
-                    players.delete(ws);
-                    break;
-                }
-            }
-            
-            // Check if Köstebek has won
-            if (players.size <= 2) {
-                endGame(true);
-            } else {
-                startNewRound();
-            }
+            endGame(winCondition);
         }
     }
 }
 
-function endGame(köstebekWon) {
+function endGame(winCondition) {
     gamePhase = 'gameOver';
     gameStarted = false;
     broadcastToAll({
         type: 'gameOver',
-        köstebekWon: köstebekWon
+        winCondition: winCondition  // 1 = köstebek kazandı, 2 = avcılar kazandı
+    });
+}
+
+
+function endGame(winCondition) {
+    gamePhase = 'gameOver';
+    gameStarted = false;
+    broadcastToAll({
+        type: 'gameOver',
+        winCondition: winCondition // 0: devam, 1: köstebek, 2: avcılar
     });
 }
 
@@ -427,7 +457,6 @@ function handleStartGame(ws) {
         });
     }
 }
-
 
 
 function resetPlayersForNewGame() {
